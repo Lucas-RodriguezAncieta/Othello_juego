@@ -14,6 +14,23 @@
 #     print_hi('PyCharm')
 
 # # See PyCharm help at https://www.jetbrains.com/help/pycharm/
+
+# FASE 2
+# from TableroOthello import TableroOthello
+# from AgenteIA.AgenteJugador import AgenteJugador
+# from AgenteIA.AgenteAleatorio import AgenteAleatorio
+
+# tablero = TableroOthello()
+
+# ia = AgenteJugador(altura=4)
+# random_agent = AgenteAleatorio()
+
+# tablero.insertar(ia)
+# tablero.insertar(random_agent)
+
+# tablero.run()
+
+# FASE 3
 from Genetico import Genetico
 from TableroOthello import TableroOthello
 from AgenteIA.AgenteJugador import AgenteJugador
@@ -22,16 +39,14 @@ from AgenteIA.AgenteAleatorio import AgenteAleatorio
 # =========================
 # 1. ENTRENAMIENTO GENÉTICO
 # =========================
-gen = Genetico(poblacion_size=6, generaciones=5)
+gen = Genetico(poblacion_size=3, generaciones=2)
 
 mejores_pesos = gen.evolucionar()
 
-print("\n🔥 Mejores pesos encontrados:", mejores_pesos)
+print("\n Mejores pesos encontrados:", mejores_pesos)
 
 
-# =========================
-# 2. PRUEBA FINAL
-# =========================
+
 print("\n===== PRUEBA FINAL =====")
 
 tablero = TableroOthello()

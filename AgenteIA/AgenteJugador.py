@@ -111,7 +111,7 @@ class AgenteJugador(Agente):
                         score_bordes += 1
                     elif tablero[i][j] == rival:
                         score_bordes -= 1
-
+        # [2, 100, -30, 10, 5]  # valores iniciales sin uso de algoritmo genetico
         return (
             w1 * score_fichas +
             w2 * score_esquinas +

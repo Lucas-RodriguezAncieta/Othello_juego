@@ -83,7 +83,7 @@ class Genetico:
             print(f"\n===== Generación {g} =====")
 
             scores = [self.fitness(ind) for ind in poblacion]
-
+            print(f" Mejor fitness generación {g}: {max(scores)}")  
             for i, (ind, sc) in enumerate(zip(poblacion, scores)):
                 print(f"Ind {i}: {ind} -> {sc}")
 
