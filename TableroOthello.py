@@ -1,7 +1,7 @@
 import numpy as np
 from AgenteIA.Entorno import Entorno
-from AgenteIA.AgenteJugador import ElEstado
-
+# from AgenteIA.AgenteJugador import ElEstado
+from Estado import ElEstado
 class TableroOthello(Entorno):
 
     def __init__(self, board_size=8):
@@ -24,8 +24,9 @@ class TableroOthello(Entorno):
             movidas=movidas_iniciales,
             get_utilidad=0
         )
-        print("--- Tablero Inicial ---")
-        self.mostrar_tablero(self.juegoActual.tablero)
+        # se comento esto para evitar que se muestravarai veces el tablero
+        # print("--- Tablero Inicial ---")
+        # self.mostrar_tablero(self.juegoActual.tablero)
 
 
     def get_percepciones(self, agente):
@@ -41,7 +42,8 @@ class TableroOthello(Entorno):
         movida = agente.get_acciones()
         self.juegoActual = agente.getResultado(self.juegoActual, movida)
         
-        nombre_jugador = "Negro (1)" if isinstance(agente, HumanoOthello) else "IA (2)"
+        # nombre_jugador = "Negro (1)" if isinstance(agente, HumanoOthello) else "IA (2)"
+        nombre_jugador = f"Jugador {agente.__class__.__name__}"
         print(f"\n--- Jugador {nombre_jugador} elige {movida} ---")
         self.mostrar_tablero(self.juegoActual.tablero)
         

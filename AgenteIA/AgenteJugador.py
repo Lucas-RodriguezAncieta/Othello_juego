@@ -1,9 +1,8 @@
 from AgenteIA.Agente import Agente
-from collections import namedtuple
 import time
 import numpy as np
-
-ElEstado = namedtuple('ElEstado', 'jugador, get_utilidad, tablero, movidas')
+from TableroOthello import TableroOthello
+from Estado import ElEstado
 
 class AgenteJugador(Agente):
     def __init__(self, altura=3):
@@ -11,6 +10,7 @@ class AgenteJugador(Agente):
         self.estado = None
         self.altura = altura
         self.tecnica = "podaalfabeta" # Por defecto
+        self.pesos = [2, 100, -30, 10, 5]  # valores iniciales
 
     def jugadas(self, estado):
         return estado.movidas
@@ -54,7 +54,6 @@ class AgenteJugador(Agente):
         siguiente_jugador = rival
 
         # Obtener nuevas jugadas
-        from TableroOthello import TableroOthello
         temp = TableroOthello(len(tablero))
         nuevas_movidas = temp._get_valid_moves(tablero, siguiente_jugador)
 
@@ -69,82 +68,56 @@ class AgenteJugador(Agente):
         return nuevo_estado
 
     def funcion_evaluacion(self, estado):
-        import numpy as np
-        from TableroOthello import TableroOthello
+        
 
         tablero = estado.tablero
         jugador = estado.jugador
         rival = 3 - jugador
         size = len(tablero)
 
-        # -----------------------------
-        # 1. Diferencia de fichas
-        # -----------------------------
+        # pesos (IMPORTANTE)
+        w1, w2, w3, w4, w5 = self.pesos
+
+        # fichas
         fichas_jugador = np.sum(tablero == jugador)
         fichas_rival = np.sum(tablero == rival)
         score_fichas = fichas_jugador - fichas_rival
 
-        # -----------------------------
-        # 2. Esquinas (MUY importantes)
-        # -----------------------------
+        # esquinas
         esquinas = [(0,0), (0,size-1), (size-1,0), (size-1,size-1)]
-        score_esquinas = 0
-        for (r, c) in esquinas:
-            if tablero[r][c] == jugador:
-                score_esquinas += 1
-            elif tablero[r][c] == rival:
-                score_esquinas -= 1
+        score_esquinas = sum(
+            1 if tablero[r][c] == jugador else -1 if tablero[r][c] == rival else 0
+            for r,c in esquinas
+        )
 
-        # -----------------------------
-        # 3. Casillas peligrosas (alrededor de esquinas)
-        # -----------------------------
-        peligrosas = [
-            (0,1),(1,0),(1,1),
-            (0,size-2),(1,size-1),(1,size-2),
-            (size-2,0),(size-1,1),(size-2,1),
-            (size-2,size-1),(size-1,size-2),(size-2,size-2)
-        ]
+        # peligro
+        peligrosas = [(0,1),(1,0),(1,1)]
+        score_peligro = sum(
+            -1 if tablero[r][c] == jugador else 1 if tablero[r][c] == rival else 0
+            for r,c in peligrosas
+        )
 
-        score_peligro = 0
-        for (r,c) in peligrosas:
-            if tablero[r][c] == jugador:
-                score_peligro -= 1
-            elif tablero[r][c] == rival:
-                score_peligro += 1
-
-        # -----------------------------
-        # 4. Movilidad (clave)
-        # -----------------------------
-        mis_movidas = len(estado.movidas)
-
+        # movilidad
         temp = TableroOthello(size)
         mov_rival = len(temp._get_valid_moves(tablero, rival))
+        score_movilidad = len(estado.movidas) - mov_rival
 
-        score_movilidad = mis_movidas - mov_rival
-
-        # -----------------------------
-        # 5. Bordes (sin esquinas)
-        # -----------------------------
+        # bordes
         score_bordes = 0
         for i in range(size):
             for j in range(size):
-                if (i,j) in esquinas:
-                    continue
-                if i == 0 or i == size-1 or j == 0 or j == size-1:
+                if i in [0,size-1] or j in [0,size-1]:
                     if tablero[i][j] == jugador:
                         score_bordes += 1
                     elif tablero[i][j] == rival:
                         score_bordes -= 1
 
-        # -----------------------------
-        # SCORE FINAL (mejorado)
-        # -----------------------------
         return (
-            2 * score_fichas +
-            100 * score_esquinas +
-            -30 * score_peligro +
-            10 * score_movilidad +
-            5 * score_bordes
+            w1 * score_fichas +
+            w2 * score_esquinas +
+            w3 * score_peligro +
+            w4 * score_movilidad +
+            w5 * score_bordes
         )
 
     def podaAlphaBeta_eval(self, estado):
