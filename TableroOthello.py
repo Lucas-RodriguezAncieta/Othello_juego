@@ -15,7 +15,7 @@ class TableroOthello(Entorno):
         tablero_inicial[mid - 1, mid] = 1      # Negro (Jugador 1)
         tablero_inicial[mid, mid - 1] = 1
 
-        jugador_inicial = 1 # Negro empieza
+        jugador_inicial = 1 # blanco empieza
         movidas_iniciales = self._get_valid_moves(tablero_inicial, jugador_inicial)
 
         self.juegoActual = ElEstado(

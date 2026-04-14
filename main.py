@@ -39,7 +39,7 @@ from AgenteIA.AgenteAleatorio import AgenteAleatorio
 # =========================
 # 1. ENTRENAMIENTO GENÉTICO
 # =========================
-gen = Genetico(poblacion_size=3, generaciones=2)
+gen = Genetico(poblacion_size=6, generaciones=5)
 
 mejores_pesos = gen.evolucionar()
 

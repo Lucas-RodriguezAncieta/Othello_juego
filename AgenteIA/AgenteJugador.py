@@ -145,12 +145,33 @@ class AgenteJugador(Agente):
         }
 
     def funcion_evaluacion(self, estado, jugador_base=None):
+
         tablero = estado.tablero
         jugador = estado.jugador if jugador_base is None else jugador_base
         rival = 3 - jugador
         size = len(tablero)
 
-        w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = self.pesos
+        # esquinas (sin return directo)
+        corner_score = 0
+        for r, c in self._corner_positions(size):
+            if tablero[r][c] == jugador:
+                corner_score += 1
+            elif tablero[r][c] == rival:
+                corner_score -= 1
+
+        casillas_vacias = int(np.sum(tablero == 0))
+
+        # INICIO
+        if casillas_vacias > 40:
+            w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [1, 120, 30, 50, 5, 10]
+
+        # MEDIO
+        elif casillas_vacias > 15:
+            w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [3, 140, 35, 30, 10, 15]
+
+        # FINAL
+        else:
+            w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [10, 200, 20, 5, 10, 20]
 
         fichas_jugador = int(np.sum(tablero == jugador))
         fichas_rival = int(np.sum(tablero == rival))
@@ -174,7 +195,10 @@ class AgenteJugador(Agente):
 
         mis_movidas = len(self._get_valid_moves(tablero, jugador))
         mov_rival = len(self._get_valid_moves(tablero, rival))
-        score_movilidad = mis_movidas - mov_rival
+        if mis_movidas + mov_rival != 0:
+            score_movilidad = (mis_movidas - mov_rival) / (mis_movidas + mov_rival)
+        else:
+            score_movilidad = 0
 
         score_bordes = 0
         for i in range(size):
@@ -263,10 +287,12 @@ class AgenteJugador(Agente):
 
         # Ordena para explorar primero jugadas prometedoras y mejorar la poda.
         acciones_ordenadas = sorted(
-            acciones,
-            key=lambda accion: self.funcion_evaluacion(self.getResultado(estado, accion), jugador_raiz),
-            reverse=True,
-        )
+        acciones,
+        key=lambda accion: self.funcion_evaluacion(
+            self.getResultado(estado, accion), jugador_raiz
+        ),
+        reverse=True
+    )   
 
         for accion in acciones_ordenadas:
             v = min_value(self.getResultado(estado, accion), mejor_score, beta, 1)
