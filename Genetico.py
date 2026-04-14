@@ -5,6 +5,7 @@ from TableroOthello import TableroOthello
 from AgenteIA.AgenteAleatorio import AgenteAleatorio
 
 class Genetico:
+    BEST_WEIGHTS = AgenteJugador.GENETIC_WEIGHTS.copy()
 
     def __init__(self, poblacion_size=6, generaciones=5):
         self.poblacion_size = poblacion_size
@@ -14,7 +15,8 @@ class Genetico:
     # Crear individuo
     # -------------------------
     def crear_individuo(self):
-        return [random.uniform(-50, 150) for _ in range(5)]
+        base = self.BEST_WEIGHTS
+        return [peso + random.uniform(-20, 20) for peso in base]
 
     # -------------------------
     # Fitness REAL
@@ -26,7 +28,7 @@ class Genetico:
         for _ in range(partidas):
             tablero = TableroOthello()
 
-            ia = AgenteJugador(altura=3)
+            ia = AgenteJugador(altura=4, pesos=pesos, usar_genetico=False)
             ia.pesos = pesos
 
             rival = AgenteAleatorio()

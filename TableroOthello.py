@@ -31,15 +31,15 @@ class TableroOthello(Entorno):
 
     def get_percepciones(self, agente):
         agente.estado = self.juegoActual
-        if agente.estado.movidas:
-            agente.programa()
-        else:
-            # Si no hay movimientos, es el fin del juego
+        agente.programa()
+        if agente.testTerminal(self.juegoActual):
             for a in self.get_agentes():
                 a.inhabilitar()
 
     def ejecutar(self, agente):
         movida = agente.get_acciones()
+        if movida is None and not agente.testTerminal(self.juegoActual):
+            print(f"\n--- Jugador {agente.__class__.__name__} pasa turno ---")
         self.juegoActual = agente.getResultado(self.juegoActual, movida)
         
         # nombre_jugador = "Negro (1)" if isinstance(agente, HumanoOthello) else "IA (2)"

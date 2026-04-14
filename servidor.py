@@ -1,21 +1,27 @@
-
 import socket
 import threading
 import json
 import numpy as np
 import time
 import traceback
+from Estado import ElEstado
+from AgenteIA.AgenteJugador import AgenteJugador
 
 
 class GameServer:
-    def __init__(self, host='127.0.0.1', port=5555):
+    def __init__(self, host='127.0.0.1', port=5555, vs_ai=False, ai_depth=4):
         self.host = host
         self.port = port
+        self.vs_ai = vs_ai
+        self.ai_depth = ai_depth
+        self.ai_color = 2
+        self.human_color = 1
         self.server_socket = None
         self.clients = []
         self.client_info = []
         self.running = False
         self.lock = threading.Lock()
+        self.ai_agent = AgenteJugador(altura=ai_depth) if vs_ai else None
         self.reset_game()
 
     def reset_game(self):
@@ -98,20 +104,18 @@ class GameServer:
             self.winner = 0
 
     def get_game_state(self):
-        # CONVERTIR todos los valores numpy a tipos nativos de Python
         board_list = self.board.tolist()
         valid_moves = self.get_valid_moves()
-
-        # Asegurarse de que los scores sean int nativos, no int64
         black_score = int(np.sum(self.board == 1))
         white_score = int(np.sum(self.board == 2))
 
         return {
             'board': board_list,
-            'current_player': int(self.current_player),  # Convertir a int nativo
-            'game_over': bool(self.game_over),  # Convertir a bool nativo
+            'current_player': int(self.current_player),
+            'game_over': bool(self.game_over),
             'winner': int(self.winner) if self.winner is not None else None,
-            'valid_moves': [(int(row), int(col)) for row, col in valid_moves],  # Convertir a int nativos
+            'valid_moves': [(int(row), int(col)) for row, col in valid_moves],
+            'mode': 'human_vs_ai' if self.vs_ai else 'human_vs_human',
             'scores': {
                 'black': black_score,
                 'white': white_score
@@ -156,48 +160,13 @@ class GameServer:
                     self.clients[i] = None
                     self.client_info[i] = None
 
-    def start_game_if_ready(self):
-        """Inicia el juego si hay exactamente 2 jugadores conectados"""
-        with self.lock:
-            active_clients = [c for c in self.clients if c is not None]
-
-        print(f"🔍 Verificando jugadores: {len(active_clients)}/2 conectados")
-
-        if len(active_clients) == 2:
-            print("🎉 ¡Ambos jugadores conectados! Iniciando juego...")
-
-            # Reiniciar el juego para empezar desde cero
-            self.reset_game()
-
-            game_state = self.get_game_state()
-            start_message = {
-                'type': 'game_start',
-                'game_state': game_state,
-                'message': '¡El juego ha comenzado!'
-            }
-
-            print("📋 Estado del juego preparado para enviar:")
-            print(f"   - Tablero: {len(game_state['board'])}x{len(game_state['board'][0])}")
-            print(f"   - Jugador actual: {game_state['current_player']}")
-            print(f"   - Movimientos válidos: {len(game_state['valid_moves'])}")
-            print(f"   - Puntuación: Negro {game_state['scores']['black']}, Blanco {game_state['scores']['white']}")
-
-            self.broadcast_to_all(start_message)
-            print("✅ Mensaje de inicio enviado a ambos clientes")
-            return True
-
-        print(f"⚠️ No hay suficientes jugadores: {len(active_clients)}/2")
-        return False
-
     def handle_client(self, client_socket, client_address, client_id):
         print(f"👤 Cliente {client_id} conectado desde {client_address}")
 
         try:
-            # Asignar color al cliente (1 para el primero, 2 para el segundo)
-            player_color = client_id + 1
+            player_color = self.human_color if self.vs_ai else client_id + 1
 
             with self.lock:
-                # Asegurarse de que las listas sean lo suficientemente grandes
                 while len(self.clients) <= client_id:
                     self.clients.append(None)
                 while len(self.client_info) <= client_id:
@@ -213,31 +182,30 @@ class GameServer:
             print(
                 f"✅ Cliente {client_id} registrado en lista. Total: {sum(1 for c in self.clients if c is not None)}/2")
 
-            # Enviar mensaje de bienvenida
             welcome_msg = {
                 'type': 'welcome',
-                'player_color': int(player_color),  # Convertir a int nativo
+                'player_color': int(player_color),
                 'message': f'Eres el jugador {"Negro" if player_color == 1 else "Blanco"}',
-                'client_id': int(client_id)  # Convertir a int nativo
+                'client_id': int(client_id)
             }
             self.send_to_client(client_socket, welcome_msg)
 
-            # Pequeña pausa para asegurar que el cliente procesó la bienvenida
             time.sleep(0.3)
 
-            # Verificar estado actual de conexiones
             with self.lock:
                 active_count = sum(1 for c in self.clients if c is not None)
 
             print(f"📊 Estado actual: {active_count}/2 jugadores activos")
 
-            if active_count == 2:
+            if self.vs_ai:
+                print("🤖 Modo IA activo, iniciando partida contra la computadora...")
+                time.sleep(0.3)
+                self.start_game_if_ready()
+            elif active_count == 2:
                 print("🚀 Ambos jugadores conectados, iniciando juego...")
-                # Pequeña pausa para asegurar que ambos clientes están listos
                 time.sleep(0.5)
                 self.start_game_if_ready()
             else:
-                # Enviar mensaje de espera CON EL CONTADOR CORRECTO
                 wait_msg = {
                     'type': 'waiting',
                     'message': f'Esperando oponente... ({active_count}/2 jugadores)'
@@ -245,7 +213,6 @@ class GameServer:
                 self.send_to_client(client_socket, wait_msg)
                 print(f"⏳ Cliente {client_id} en modo espera ({active_count}/2)")
 
-            # Bucle principal para recibir mensajes
             buffer = ""
             while self.running:
                 try:
@@ -287,12 +254,53 @@ class GameServer:
             except:
                 pass
 
-            # Notificar al otro jugador
             disconnect_msg = {
                 'type': 'opponent_disconnected',
                 'message': 'El oponente se ha desconectado'
             }
             self.broadcast_to_all(disconnect_msg)
+
+    def build_ai_state(self):
+        return ElEstado(
+            jugador=int(self.current_player),
+            tablero=np.copy(self.board),
+            movidas=self.get_valid_moves(self.current_player),
+            get_utilidad=0
+        )
+
+    def maybe_run_ai_turn(self):
+        if not self.vs_ai or self.game_over:
+            return
+
+        while self.running and not self.game_over and self.current_player == self.ai_color:
+            estado = self.build_ai_state()
+            if not estado.movidas:
+                print("🤖 La IA no tiene movimientos disponibles.")
+                break
+
+            self.ai_agent.estado = estado
+            self.ai_agent.programa()
+            move = self.ai_agent.get_acciones()
+
+            if move is None:
+                print("🤖 La IA no seleccionó movimiento.")
+                break
+
+            row, col = move
+            print(f"🤖 IA juega en ({row}, {col})")
+            success, msg = self.make_move(row, col, self.ai_color)
+            print(f"🤖 Resultado IA: {msg}")
+
+            if not success:
+                break
+
+            update_msg = {
+                'type': 'game_update',
+                'game_state': self.get_game_state(),
+                'message': f'La IA jugó en ({row}, {col})'
+            }
+            self.broadcast_to_all(update_msg)
+            time.sleep(0.35)
 
     def process_client_message(self, client_socket, client_id, player_color, message):
         msg_type = message.get('type')
@@ -308,6 +316,7 @@ class GameServer:
                     print("✅ Movimiento exitoso, actualizando juego...")
                     update_msg = {'type': 'game_update', 'game_state': self.get_game_state()}
                     self.broadcast_to_all(update_msg)
+                    self.maybe_run_ai_turn()
 
     def start(self):
         try:
@@ -328,15 +337,26 @@ class GameServer:
 
                     print(f"🔗 Nueva conexión de {client_address}")
 
+                    if self.vs_ai:
+                        with self.lock:
+                            active_count = sum(1 for c in self.clients if c is not None)
+                        if active_count >= 1:
+                            reject_message = {
+                                'type': 'server_full',
+                                'message': 'Este servidor está en modo contra IA y ya tiene un jugador conectado.'
+                            }
+                            self.send_to_client(client_socket, reject_message)
+                            client_socket.close()
+                            print("⚠️ Conexión rechazada: el modo vs IA admite solo un jugador humano.")
+                            continue
+
                     with self.lock:
-                        # Buscar slot vacío
                         slot_index = None
                         for i in range(len(self.clients)):
                             if self.clients[i] is None:
                                 slot_index = i
                                 break
 
-                        # Si no hay slot vacío, crear uno nuevo
                         if slot_index is None:
                             slot_index = len(self.clients)
                             self.clients.append(None)
@@ -345,7 +365,6 @@ class GameServer:
                         print(f"🆔 Asignando slot {slot_index} al nuevo cliente")
                         self.clients[slot_index] = client_socket
 
-                    # Iniciar hilo del cliente
                     client_thread = threading.Thread(
                         target=self.handle_client,
                         args=(client_socket, client_address, slot_index),
@@ -356,13 +375,6 @@ class GameServer:
 
                     print(
                         f"✅ Hilo del cliente {slot_index} iniciado. Total activos: {sum(1 for c in self.clients if c is not None)}/2")
-
-                    # Esperar a que el cliente se registre completamente
-                    time.sleep(0.5)
-
-                    # Verificar si podemos iniciar el juego
-                    print("🔄 Verificando estado después de nueva conexión...")
-                    self.start_game_if_ready()
 
                 except socket.timeout:
                     continue
@@ -389,14 +401,52 @@ class GameServer:
                     pass
         print("🛑 Servidor detenido")
 
+    def start_game_if_ready(self):
+        with self.lock:
+            active_clients = [c for c in self.clients if c is not None]
+
+        expected_players = 1 if self.vs_ai else 2
+        print(f"🔍 Verificando jugadores: {len(active_clients)}/{expected_players} conectados")
+
+        if len(active_clients) == expected_players:
+            print("🎉 Jugadores listos. Iniciando juego...")
+            self.reset_game()
+
+            game_state = self.get_game_state()
+            start_message = {
+                'type': 'game_start',
+                'game_state': game_state,
+                'message': '¡La partida ha comenzado!'
+            }
+
+            print("📋 Estado del juego preparado para enviar:")
+            print(f"   - Tablero: {len(game_state['board'])}x{len(game_state['board'][0])}")
+            print(f"   - Jugador actual: {game_state['current_player']}")
+            print(f"   - Movimientos válidos: {len(game_state['valid_moves'])}")
+            print(f"   - Puntuación: Negro {game_state['scores']['black']}, Blanco {game_state['scores']['white']}")
+
+            self.broadcast_to_all(start_message)
+            print("✅ Mensaje de inicio enviado a los clientes activos")
+            self.maybe_run_ai_turn()
+            return True
+
+        print(f"⚠️ No hay suficientes jugadores: {len(active_clients)}/{expected_players}")
+        return False
+
 
 if __name__ == "__main__":
     print("=== 🎮 SERVIDOR OTHELLO ===")
     host = input("🌐 Host [127.0.0.1]: ").strip() or '127.0.0.1'
     port_input = input("🔌 Puerto [5555]: ").strip()
     port = int(port_input) if port_input.isdigit() else 5555
+    mode_input = input("🤖 ¿Jugar contra IA? [s/N]: ").strip().lower()
+    vs_ai = mode_input in {"s", "si", "sí", "y", "yes"}
+    ai_depth = 4
+    if vs_ai:
+        depth_input = input("🧠 Profundidad IA [4]: ").strip()
+        ai_depth = int(depth_input) if depth_input.isdigit() and int(depth_input) > 0 else 4
 
-    server = GameServer(host, port)
+    server = GameServer(host, port, vs_ai=vs_ai, ai_depth=ai_depth)
     try:
         server.start()
     except KeyboardInterrupt:

@@ -76,6 +76,10 @@ class ClienteBase:
         elif msg_type == 'opponent_disconnected':
             self.waiting_for_opponent = True
             self.connection_status = "Oponente desconectado"
+        elif msg_type == 'server_full':
+            self.connection_status = message.get('message', 'Servidor lleno')
+            self.waiting_for_opponent = True
+            self.disconnect(self.connection_status)
         
         # Llama al callback si está definido, para que las subclases puedan reaccionar
         if self.on_message_received:
