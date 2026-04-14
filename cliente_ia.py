@@ -44,7 +44,7 @@ class ClienteIA(ClienteBase):
                 return
 
             # ❌ evitar repetir turno
-            if turno_actual == self.ultimo_turno:
+            if turno_actual != self.player_color:
                 return
 
             self.ultimo_turno = turno_actual

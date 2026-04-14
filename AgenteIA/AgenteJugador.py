@@ -236,7 +236,8 @@ class AgenteJugador(Agente):
             if self.testTerminal(e) or profundidad >= self.altura:
                 return evaluar(e)
 
-            acciones_locales = self.jugadas(e)
+            acciones_locales = [tuple(a) for a in self.jugadas(e)]
+
             if not acciones_locales:
                 return min_value(
                     ElEstado(
@@ -262,7 +263,8 @@ class AgenteJugador(Agente):
             if self.testTerminal(e) or profundidad >= self.altura:
                 return evaluar(e)
 
-            acciones_locales = self.jugadas(e)
+            acciones_locales = [tuple(a) for a in self.jugadas(e)]
+
             if not acciones_locales:
                 return max_value(
                     ElEstado(
@@ -284,17 +286,18 @@ class AgenteJugador(Agente):
                 beta = min(beta, v)
             return v
 
-        acciones = self.jugadas(estado)
+        # 🔥 ACCIONES RAÍZ (fix tuplas)
+        acciones = [tuple(a) for a in self.jugadas(estado)]
         if not acciones:
             return None
 
-        # Prioridad absoluta a esquinas
+        # 🧨 PRIORIDAD ABSOLUTA A ESQUINAS
         esquinas = set(self._corner_positions(size))
         for accion in acciones:
             if accion in esquinas:
                 return accion
 
-        # Filtrar movimientos peligrosos si existe al menos una alternativa segura
+        # 🧨 FILTRO DE MOVIMIENTOS PELIGROSOS
         peligrosas = set()
         for celdas in self._danger_zones(size).values():
             peligrosas.update(celdas)
@@ -303,15 +306,18 @@ class AgenteJugador(Agente):
         if acciones_seguras:
             acciones = acciones_seguras
 
-        mejor_score = -float('inf')
-        beta = float('inf')
-        mejor_accion = acciones[0]
-
+        # 🔥 ORDENAMIENTO (mejor poda)
         acciones_ordenadas = sorted(
             acciones,
-            key=lambda accion: self.funcion_evaluacion(self.getResultado(estado, accion), jugador_raiz),
+            key=lambda accion: self.funcion_evaluacion(
+                self.getResultado(estado, accion), jugador_raiz
+            ),
             reverse=True
         )
+
+        mejor_score = -float('inf')
+        beta = float('inf')
+        mejor_accion = acciones_ordenadas[0]
 
         for accion in acciones_ordenadas:
             v = min_value(self.getResultado(estado, accion), mejor_score, beta, 1)

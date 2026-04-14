@@ -27,11 +27,11 @@ class GameServer:
     def reset_game(self):
         self.board = np.zeros((8, 8), dtype=int)
         mid = 4
-        self.board[mid - 1][mid - 1] = 1 #volteado para que juege ia 1ro
-        self.board[mid][mid] = 1 #volteado para que juegue ia 1ro
-        self.board[mid - 1][mid] = 2
-        self.board[mid][mid - 1] = 2
-        self.current_player = 2 #quien juega primero
+        self.board[mid - 1][mid - 1] = 2 #volteado para que juege ia 1ro
+        self.board[mid][mid] = 2 #volteado para que juegue ia 1ro
+        self.board[mid - 1][mid] = 1
+        self.board[mid][mid - 1] = 1
+        self.current_player = 1 #quien juega primero
         self.game_over = False
         self.winner = None
         print("🎮 Juego reiniciado")
