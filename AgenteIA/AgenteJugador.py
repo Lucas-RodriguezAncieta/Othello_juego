@@ -7,15 +7,16 @@ from Estado import ElEstado
 class AgenteJugador(Agente):
     DEFAULT_WEIGHTS = [4, 120, 35, 18, 8, 12]
     GENETIC_WEIGHTS = [6, 145, 42, 24, 10, 16]
+
     POSITION_WEIGHTS = np.array([
-        [120, -20, 20, 5, 5, 20, -20, 120],
-        [-20, -40, -5, -5, -5, -5, -40, -20],
-        [20, -5, 15, 3, 3, 15, -5, 20],
-        [5, -5, 3, 3, 3, 3, -5, 5],
-        [5, -5, 3, 3, 3, 3, -5, 5],
-        [20, -5, 15, 3, 3, 15, -5, 20],
-        [-20, -40, -5, -5, -5, -5, -40, -20],
-        [120, -20, 20, 5, 5, 20, -20, 120],
+        [120, -20,  20,   5,   5,  20, -20, 120],
+        [-20, -40,  -5,  -5,  -5,  -5, -40, -20],
+        [ 20,  -5,  15,   3,   3,  15,  -5,  20],
+        [  5,  -5,   3,   3,   3,   3,  -5,   5],
+        [  5,  -5,   3,   3,   3,   3,  -5,   5],
+        [ 20,  -5,  15,   3,   3,  15,  -5,  20],
+        [-20, -40,  -5,  -5,  -5,  -5, -40, -20],
+        [120, -20,  20,   5,   5,  20, -20, 120],
     ])
 
     def __init__(self, altura=4, pesos=None, usar_genetico=True):
@@ -23,6 +24,7 @@ class AgenteJugador(Agente):
         self.estado = None
         self.altura = altura
         self.tecnica = "podaalfabeta"
+
         if pesos is not None:
             self.pesos = list(pesos)
         elif usar_genetico:
@@ -49,21 +51,36 @@ class AgenteJugador(Agente):
             (1, -1),  (1, 0),  (1, 1),
         ]
 
+    def _corner_positions(self, size):
+        return [(0, 0), (0, size - 1), (size - 1, 0), (size - 1, size - 1)]
+
+    def _danger_zones(self, size):
+        return {
+            (0, 0): [(0, 1), (1, 0), (1, 1)],
+            (0, size - 1): [(0, size - 2), (1, size - 1), (1, size - 2)],
+            (size - 1, 0): [(size - 2, 0), (size - 1, 1), (size - 2, 1)],
+            (size - 1, size - 1): [(size - 2, size - 1), (size - 1, size - 2), (size - 2, size - 2)],
+        }
+
     def _is_valid_move(self, tablero, jugador, row, col):
         if tablero[row][col] != 0:
             return False
 
         rival = 3 - jugador
         size = len(tablero)
+
         for dr, dc in self._directions():
             r, c = row + dr, col + dc
             found_opponent = False
+
             while 0 <= r < size and 0 <= c < size and tablero[r][c] == rival:
                 found_opponent = True
                 r += dr
                 c += dc
+
             if found_opponent and 0 <= r < size and 0 <= c < size and tablero[r][c] == jugador:
                 return True
+
         return False
 
     def _get_valid_moves(self, tablero, jugador):
@@ -84,6 +101,7 @@ class AgenteJugador(Agente):
         for dr, dc in self._directions():
             r, c = row + dr, col + dc
             piezas_a_voltear = []
+
             while 0 <= r < len(nuevo_tablero) and 0 <= c < len(nuevo_tablero) and nuevo_tablero[r][c] == rival:
                 piezas_a_voltear.append((r, c))
                 r += dr
@@ -105,10 +123,11 @@ class AgenteJugador(Agente):
 
     def getResultado(self, estado, accion):
         if accion is None:
+            rival = 3 - estado.jugador
             return ElEstado(
-                jugador=3 - estado.jugador,
+                jugador=rival,
                 tablero=np.copy(estado.tablero),
-                movidas=self._get_valid_moves(estado.tablero, 3 - estado.jugador),
+                movidas=self._get_valid_moves(estado.tablero, rival),
                 get_utilidad=0
             )
 
@@ -124,7 +143,7 @@ class AgenteJugador(Agente):
                 get_utilidad=0
             )
 
-        # Si el rival no puede jugar, el turno vuelve al jugador actual.
+        # Si el rival no puede jugar, el turno vuelve al jugador actual
         mis_movidas = self._get_valid_moves(tablero, estado.jugador)
         return ElEstado(
             jugador=estado.jugador,
@@ -133,43 +152,19 @@ class AgenteJugador(Agente):
             get_utilidad=0
         )
 
-    def _corner_positions(self, size):
-        return [(0, 0), (0, size - 1), (size - 1, 0), (size - 1, size - 1)]
-
-    def _danger_zones(self, size):
-        return {
-            (0, 0): [(0, 1), (1, 0), (1, 1)],
-            (0, size - 1): [(0, size - 2), (1, size - 1), (1, size - 2)],
-            (size - 1, 0): [(size - 2, 0), (size - 1, 1), (size - 2, 1)],
-            (size - 1, size - 1): [(size - 2, size - 1), (size - 1, size - 2), (size - 2, size - 2)],
-        }
-
     def funcion_evaluacion(self, estado, jugador_base=None):
-
         tablero = estado.tablero
         jugador = estado.jugador if jugador_base is None else jugador_base
         rival = 3 - jugador
         size = len(tablero)
 
-        # esquinas (sin return directo)
-        corner_score = 0
-        for r, c in self._corner_positions(size):
-            if tablero[r][c] == jugador:
-                corner_score += 1
-            elif tablero[r][c] == rival:
-                corner_score -= 1
-
         casillas_vacias = int(np.sum(tablero == 0))
 
-        # INICIO
+        # Heurística dinámica por fases
         if casillas_vacias > 40:
             w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [1, 120, 30, 50, 5, 10]
-
-        # MEDIO
         elif casillas_vacias > 15:
             w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [3, 140, 35, 30, 10, 15]
-
-        # FINAL
         else:
             w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [10, 200, 20, 5, 10, 20]
 
@@ -185,6 +180,7 @@ class AgenteJugador(Agente):
 
         score_peligro = 0
         for esquina, celdas in self._danger_zones(size).items():
+            # Solo castiga estas celdas si la esquina aún está libre
             if tablero[esquina[0]][esquina[1]] != 0:
                 continue
             for r, c in celdas:
@@ -228,6 +224,7 @@ class AgenteJugador(Agente):
 
     def podaAlphaBeta_eval(self, estado):
         jugador_raiz = estado.jugador
+        size = len(estado.tablero)
 
         def evaluar(e):
             if self.testTerminal(e):
@@ -239,17 +236,22 @@ class AgenteJugador(Agente):
             if self.testTerminal(e) or profundidad >= self.altura:
                 return evaluar(e)
 
-            acciones = self.jugadas(e)
-            if not acciones:
+            acciones_locales = self.jugadas(e)
+            if not acciones_locales:
                 return min_value(
-                    ElEstado(jugador=3 - e.jugador, tablero=e.tablero, movidas=self._get_valid_moves(e.tablero, 3 - e.jugador), get_utilidad=0),
+                    ElEstado(
+                        jugador=3 - e.jugador,
+                        tablero=e.tablero,
+                        movidas=self._get_valid_moves(e.tablero, 3 - e.jugador),
+                        get_utilidad=0
+                    ),
                     alpha,
                     beta,
                     profundidad + 1,
                 )
 
             v = -float('inf')
-            for accion in acciones:
+            for accion in acciones_locales:
                 v = max(v, min_value(self.getResultado(e, accion), alpha, beta, profundidad + 1))
                 if v >= beta:
                     return v
@@ -260,17 +262,22 @@ class AgenteJugador(Agente):
             if self.testTerminal(e) or profundidad >= self.altura:
                 return evaluar(e)
 
-            acciones = self.jugadas(e)
-            if not acciones:
+            acciones_locales = self.jugadas(e)
+            if not acciones_locales:
                 return max_value(
-                    ElEstado(jugador=3 - e.jugador, tablero=e.tablero, movidas=self._get_valid_moves(e.tablero, 3 - e.jugador), get_utilidad=0),
+                    ElEstado(
+                        jugador=3 - e.jugador,
+                        tablero=e.tablero,
+                        movidas=self._get_valid_moves(e.tablero, 3 - e.jugador),
+                        get_utilidad=0
+                    ),
                     alpha,
                     beta,
                     profundidad + 1,
                 )
 
             v = float('inf')
-            for accion in acciones:
+            for accion in acciones_locales:
                 v = min(v, max_value(self.getResultado(e, accion), alpha, beta, profundidad + 1))
                 if v <= alpha:
                     return v
@@ -281,24 +288,37 @@ class AgenteJugador(Agente):
         if not acciones:
             return None
 
+        # Prioridad absoluta a esquinas
+        esquinas = set(self._corner_positions(size))
+        for accion in acciones:
+            if accion in esquinas:
+                return accion
+
+        # Filtrar movimientos peligrosos si existe al menos una alternativa segura
+        peligrosas = set()
+        for celdas in self._danger_zones(size).values():
+            peligrosas.update(celdas)
+
+        acciones_seguras = [a for a in acciones if a not in peligrosas]
+        if acciones_seguras:
+            acciones = acciones_seguras
+
         mejor_score = -float('inf')
         beta = float('inf')
         mejor_accion = acciones[0]
 
-        # Ordena para explorar primero jugadas prometedoras y mejorar la poda.
         acciones_ordenadas = sorted(
-        acciones,
-        key=lambda accion: self.funcion_evaluacion(
-            self.getResultado(estado, accion), jugador_raiz
-        ),
-        reverse=True
-    )   
+            acciones,
+            key=lambda accion: self.funcion_evaluacion(self.getResultado(estado, accion), jugador_raiz),
+            reverse=True
+        )
 
         for accion in acciones_ordenadas:
             v = min_value(self.getResultado(estado, accion), mejor_score, beta, 1)
             if v > mejor_score:
                 mejor_score = v
                 mejor_accion = accion
+
         return mejor_accion
 
     def mide_tiempo(funcion):
