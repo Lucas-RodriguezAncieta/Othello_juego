@@ -62,6 +62,51 @@ class AgenteJugador(Agente):
             (size - 1, size - 1): [(size - 2, size - 1), (size - 1, size - 2), (size - 2, size - 2)],
         }
 
+    def _count_stable_discs(self, tablero, jugador):
+        size = len(tablero)
+        estable = set()
+        esquinas = self._corner_positions(size)
+
+        def avanzar(fila, col, paso_fila, paso_col):
+            while 0 <= fila < size and 0 <= col < size and tablero[fila][col] == jugador:
+                estable.add((fila, col))
+                fila += paso_fila
+                col += paso_col
+
+        if tablero[0][0] == jugador:
+            avanzar(0, 0, 0, 1)
+            avanzar(0, 0, 1, 0)
+        if tablero[0][size - 1] == jugador:
+            avanzar(0, size - 1, 0, -1)
+            avanzar(0, size - 1, 1, 0)
+        if tablero[size - 1][0] == jugador:
+            avanzar(size - 1, 0, 0, 1)
+            avanzar(size - 1, 0, -1, 0)
+        if tablero[size - 1][size - 1] == jugador:
+            avanzar(size - 1, size - 1, 0, -1)
+            avanzar(size - 1, size - 1, -1, 0)
+
+        # Extensión conservadora en bordes completos entre extremos ya asegurados.
+        for fila in [0, size - 1]:
+            if all(tablero[fila][col] == jugador for col in range(size)):
+                for col in range(size):
+                    estable.add((fila, col))
+        for col in [0, size - 1]:
+            if all(tablero[fila][col] == jugador for fila in range(size)):
+                for fila in range(size):
+                    estable.add((fila, col))
+
+        return len(estable)
+
+    def _parity_score(self, tablero, jugador):
+        vacias = int(np.sum(tablero == 0))
+        if vacias == 0:
+            return 0
+
+        # En Othello, mover con paridad favorable en el final suele ser ventajoso.
+        # Valor positivo si el jugador base tendrá la última jugada bajo paridad simple.
+        return 1 if vacias % 2 == 1 else -1
+
     def _is_valid_move(self, tablero, jugador, row, col):
         if tablero[row][col] != 0:
             return False
@@ -159,14 +204,24 @@ class AgenteJugador(Agente):
         size = len(tablero)
 
         casillas_vacias = int(np.sum(tablero == 0))
+        base_fichas, base_esquinas, base_peligro, base_movilidad, base_bordes, base_posicional = self.pesos
 
-        # Heurística dinámica por fases
+        # Ajuste dinámico por fases, respetando los pesos configurados/genéticos.
         if casillas_vacias > 40:
-            w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [1, 120, 30, 50, 5, 10]
+            multipliers = [0.4, 1.0, 1.0, 2.0, 0.7, 0.8]
         elif casillas_vacias > 15:
-            w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [3, 140, 35, 30, 10, 15]
+            multipliers = [0.8, 1.15, 1.1, 1.3, 1.0, 1.0]
         else:
-            w_fichas, w_esquinas, w_peligro, w_movilidad, w_bordes, w_posicional = [10, 200, 20, 5, 10, 20]
+            multipliers = [1.8, 1.35, 0.7, 0.4, 1.1, 1.2]
+
+        w_fichas = base_fichas * multipliers[0]
+        w_esquinas = base_esquinas * multipliers[1]
+        w_peligro = base_peligro * multipliers[2]
+        w_movilidad = base_movilidad * multipliers[3]
+        w_bordes = base_bordes * multipliers[4]
+        w_posicional = base_posicional * multipliers[5]
+        w_estabilidad = (base_esquinas * 0.35) * (0.5 if casillas_vacias > 40 else 1.0 if casillas_vacias > 15 else 1.6)
+        w_paridad = (base_movilidad * 0.8) * (0.0 if casillas_vacias > 15 else 1.8)
 
         fichas_jugador = int(np.sum(tablero == jugador))
         fichas_rival = int(np.sum(tablero == rival))
@@ -213,13 +268,18 @@ class AgenteJugador(Agente):
         else:
             score_posicional = 0
 
+        score_estabilidad = self._count_stable_discs(tablero, jugador) - self._count_stable_discs(tablero, rival)
+        score_paridad = self._parity_score(tablero, jugador)
+
         return (
             w_fichas * score_fichas +
             w_esquinas * score_esquinas +
             w_peligro * score_peligro +
             w_movilidad * score_movilidad +
             w_bordes * score_bordes +
-            w_posicional * score_posicional
+            w_posicional * score_posicional +
+            w_estabilidad * score_estabilidad +
+            w_paridad * score_paridad
         )
 
     def podaAlphaBeta_eval(self, estado):
@@ -296,15 +356,6 @@ class AgenteJugador(Agente):
         for accion in acciones:
             if accion in esquinas:
                 return accion
-
-        # 🧨 FILTRO DE MOVIMIENTOS PELIGROSOS
-        peligrosas = set()
-        for celdas in self._danger_zones(size).values():
-            peligrosas.update(celdas)
-
-        acciones_seguras = [a for a in acciones if a not in peligrosas]
-        if acciones_seguras:
-            acciones = acciones_seguras
 
         # 🔥 ORDENAMIENTO (mejor poda)
         acciones_ordenadas = sorted(
